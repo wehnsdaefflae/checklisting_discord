@@ -13,7 +13,8 @@
         "max_supply": "21000000.0", 
         "percent_change_1h": "-4.49", 
         "percent_change_24h": "-12.77", 
-        "percent_change_7d": "-20.15", 
+        "percent_change_7d": "-20.15",
+        "price_eur": "9673.6636128",
         "last_updated": "1516094064"
     }, 
     {
@@ -29,7 +30,8 @@
         "total_supply": "16805650.0", 
         "max_supply": "21000000.0", 
         "percent_change_1h": "-4.49", 
-        "percent_change_24h": "-12.77", 
+        "percent_change_24h": "-12.77",
+        "price_eur": "9673.6636128",
         "percent_change_7d": "-20.15", 
         "last_updated": "1516094064"
     }, 
@@ -47,7 +49,8 @@
         "max_supply": null, 
         "percent_change_1h": "-5.34", 
         "percent_change_24h": "-18.12", 
-        "percent_change_7d": "-10.26", 
+        "percent_change_7d": "-10.26",
+        "price_eur": "9673.6636128",
         "last_updated": "1516094051"
     }, 
     {
@@ -62,7 +65,8 @@
         "available_supply": "38739142811.0", 
         "total_supply": "99993093880.0", 
         "max_supply": "100000000000", 
-        "percent_change_1h": "-5.55", 
+        "percent_change_1h": "-5.55",
+        "price_eur": "9673.6636128",
         "percent_change_24h": "-25.96", 
         "percent_change_7d": "-42.27", 
         "last_updated": "1516094041"
@@ -79,7 +83,8 @@
         "available_supply": "16914538.0", 
         "total_supply": "16914538.0", 
         "max_supply": "21000000.0", 
-        "percent_change_1h": "-6.76", 
+        "percent_change_1h": "-6.76",
+        "price_eur": "9673.6636128",
         "percent_change_24h": "-22.19", 
         "percent_change_7d": "-19.51", 
         "last_updated": "1516094056"
@@ -95,7 +100,8 @@
         "market_cap_usd": "16284896713.0", 
         "available_supply": "25927070538.0", 
         "total_supply": "31112483745.0", 
-        "max_supply": "45000000000.0", 
+        "max_supply": "45000000000.0",
+        "price_eur": "9673.6636128",
         "percent_change_1h": "-6.65", 
         "percent_change_24h": "-24.88", 
         "percent_change_7d": "-28.32", 
@@ -115,7 +121,8 @@
         "max_supply": "84000000.0", 
         "percent_change_1h": "-4.7", 
         "percent_change_24h": "-16.2", 
-        "percent_change_7d": "-20.65", 
+        "percent_change_7d": "-20.65",
+        "price_eur": "9673.6636128",
         "last_updated": "1516094041"
     }, 
     {
@@ -131,7 +138,8 @@
         "total_supply": "8999999999.0", 
         "max_supply": null, 
         "percent_change_1h": "1.1", 
-        "percent_change_24h": "-22.67", 
+        "percent_change_24h": "-22.67",
+        "price_eur": "9673.6636128",
         "percent_change_7d": "-31.17", 
         "last_updated": "1516094045"
     }, 
@@ -149,7 +157,8 @@
         "max_supply": null, 
         "percent_change_1h": "-8.21", 
         "percent_change_24h": "-5.83", 
-        "percent_change_7d": "27.33", 
+        "percent_change_7d": "27.33",
+        "price_eur": "9673.6636128",
         "last_updated": "1516094051"
     }, 
     {
@@ -166,7 +175,8 @@
         "max_supply": null, 
         "percent_change_1h": "-6.44", 
         "percent_change_24h": "-25.6", 
-        "percent_change_7d": "-24.9", 
+        "percent_change_7d": "-24.9",
+        "price_eur": "9673.6636128",
         "last_updated": "1516094044"
     }, 
     {
@@ -182,7 +192,8 @@
         "total_supply": "2779530283.0", 
         "max_supply": "2779530283.0", 
         "percent_change_1h": "-7.6", 
-        "percent_change_24h": "-19.5", 
+        "percent_change_24h": "-19.5",
+        "price_eur": "9673.6636128",
         "percent_change_7d": "-21.77", 
         "last_updated": "1516094054"
     },
@@ -201,6 +212,7 @@
         "percent_change_1h": "-7.6",
         "percent_change_24h": "-19.5",
         "percent_change_7d": "-21.77",
+        "price_eur": "9673.6636128",
         "last_updated": "1516094054"
     }
 ]

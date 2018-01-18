@@ -2,8 +2,7 @@ import json
 
 import asyncio
 import logging
-import pprint
-import re
+import platform
 
 import time
 
@@ -11,20 +10,14 @@ import os
 
 import shutil
 
-from coinmarketcap import Market
+import discord
 from discord.ext import commands
 
-with open("resources/discord.json", mode="r") as file:
-    discord_data = json.load(file)
-
-TOKEN = discord_data.get("Bot Token")
-
-description = """CMC Listing Notification Bot"""
-bot = commands.Bot(command_prefix="/", description=description)
+from src.functions import get_cmc_data, coin_list_to_dict, get_debug_data
 
 DEBUG = False
 INTERVAL = 3 if DEBUG else 300
-LISTED_PATH = "resources/listed_coins.json"
+COIN_INFO_PATH = "resources/last_coin_info.json"
 
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
@@ -39,96 +32,107 @@ console_handler = logging.StreamHandler()
 console_handler.setFormatter(log_formatter)
 LOGGER.addHandler(console_handler)
 
+id_to_coin_dict = dict()
+symbol_to_ids = dict()
+user_notifications = set()
 
-def get_debug_prices():
-    with open("resources/debug_coins.json", mode="r") as debug_file:
-        return json.load(debug_file)
-
-
-def get_cmc_prices():
-    cmc = Market()
-    return cmc.ticker(limit=0, convert="EUR")
-
-
-def coin_list_to_dict(coin_list):
-    return {coin.get("id", "<no symbol>"): coin for coin in coin_list}
+URL = "https://github.com/wehnsdaefflae/checklisting_discord"
+DESCRIPTION = """CMC Listing Notification Bot"""
+bot = commands.Bot(command_prefix="?", description=DESCRIPTION)
 
 
 def get_symbols(user_id):
     json_path = "users/{:s}/symbols.json".format(user_id)
     if not os.path.isfile(json_path):
+        LOGGER.error("User <{}> not found! Defaulting to empty set.".format(user_id))
         return set()
     with open(json_path, mode="r") as json_file:
         try:
-            symbols = json.load(json_file)
+            symbols = set(json.load(json_file))
         except ValueError as ve:
-            format_str = "Error while parsing JSON in <{}>! Defaulting to empty list.\n{:s}"
+            format_str = "Error while parsing JSON in <{}>! Defaulting to empty set.\n{:s}"
             LOGGER.error(format_str.format(json_path, ve))
             symbols = set()
         except FileNotFoundError as fnf:
-            LOGGER.error("File <{}> not found! Defaulting to empty list.\n{:s}".format(json_path, fnf))
+            LOGGER.error("File <{}> not found! Defaulting to empty set.\n{:s}".format(json_path, fnf))
             symbols = set()
-    return {x.lower() for x in symbols}
-
-
-id_to_coin_dict = dict()
-smb_to_ids = dict()
-user_notifications = dict()
+    return symbols
 
 
 @bot.event
 async def on_ready():
-    print('Logged in as')
-    print(bot.user.name)
-    print(bot.user.id)
-    print('------')
-    bot.loop.create_task(my_background_task())
+    members = set(bot.get_all_members())
+    print('Logged in as ' + bot.user.name + ' (ID:' + bot.user.id + ') | Connected to ' + str(
+        len(bot.servers)) + ' servers | Connected to {:d} users'.format(len(members)))
+    print("\n".join([x.name for x in members]))
+    print('--------')
+    print('Current Discord.py Version: {} | Current Python Version: {}'.format(discord.__version__,
+                                                                               platform.python_version()))
+    print('--------')
+    print('Use this link to invite {}:'.format(bot.user.name))
+    print('https://discordapp.com/oauth2/authorize?client_id={}&scope=bot&permissions=8'.format(bot.user.id))
+    bot.loop.create_task(poll_loop())
 
 
-async def my_background_task():
+async def notification(user_id, coin):
+    retrieved_author = await bot.get_user_info(user_id)
+    embed = await get_coin_embed(coin)
+    await bot.send_message(retrieved_author, embed=embed)
+
+
+async def poll_loop():
     while True:
         LOGGER.info("Waiting {:d} seconds.".format(INTERVAL))
         await asyncio.sleep(INTERVAL)
 
-        LOGGER.info("Getting coinmarketcap data.")
+        LOGGER.info("Getting data...")
         try:
-            coins = get_debug_prices() if DEBUG else get_cmc_prices()
+            # get data and put in coin id dict
+            coins = get_debug_data() if DEBUG else get_cmc_data()
             for each_coin in coins:
                 each_coin["symbol"] = each_coin.get("symbol", "").lower()
             LOGGER.info("Received {:d} coins.".format(len(coins)))
-
             new_id_to_coin_dict = coin_list_to_dict(coins)
 
-            global id_to_coin_dict, smb_to_ids
-            delta_ids = set(new_id_to_coin_dict.keys()) - set(id_to_coin_dict.keys())
-            smb_to_ids.clear()
+            # update symbol to coin ids map
+            symbol_to_ids.clear()
             for each_id, each_coin in new_id_to_coin_dict.items():
-                symbol = each_coin["symbol"]
-                ids = smb_to_ids.get(symbol)
+                symbol = each_coin.get("symbol", "")
+                ids = symbol_to_ids.get(symbol)
                 if ids is None:
                     ids = {each_id}
-                    smb_to_ids[symbol] = ids
+                    symbol_to_ids[symbol] = ids
                 else:
                     ids.add(each_id)
 
-            global user_notifications
-            uids = [x for x in os.listdir("users/") if os.path.isdir("users/" + x) and re.search(r'[0-9]+', x)]
-            for each_uid in uids:
-                if user_notifications.get(each_uid, False):
-                    symbols = get_symbols(each_uid)
-                    for each_id in delta_ids:
-                        coin = new_id_to_coin_dict[each_id]
-                        each_symbol = coin.get("symbol")
-                        if each_symbol in symbols:
-                            retrieved_author = await bot.get_user_info(each_uid)
-                            coin_id = coin["id"]
-                            await bot.send_message(retrieved_author, content="Symbol {:s} has been added as {:s}.".format(each_symbol, coin_id))
+            # determine new coin ids
+            delta_ids = set(new_id_to_coin_dict.keys()) - set(id_to_coin_dict.keys())
 
+            # check user watch lists for new coin ids
+            remove_user = set()
+            for each_uid in user_notifications:
+                if not os.path.isdir("users/" + each_uid):
+                    LOGGER.error("Data for user <{:s}> not found! Removing user from notification list...")
+                    remove_user.add(each_uid)
+                    continue
+
+                symbols = get_symbols(each_uid)
+                for each_id in delta_ids:
+                    coin = new_id_to_coin_dict[each_id]
+                    each_symbol = coin.get("symbol")
+                    if each_symbol in symbols:
+                        await notification(each_uid, coin)
+
+            for each_user in remove_user:
+                user_notifications.remove(each_user)
+
+            # update last coin info
             id_to_coin_dict.clear()
             id_to_coin_dict.update(new_id_to_coin_dict)
 
-            LOGGER.info("Saving listed coins to <{}>.".format(LISTED_PATH))
-            with open(LISTED_PATH, mode="w") as listed_file:
+            # persist last coin info
+            LOGGER.info("Saving listed coins to <{}>.".format(COIN_INFO_PATH))
+            with open(COIN_INFO_PATH, mode="w") as listed_file:
                 json.dump(id_to_coin_dict, listed_file, indent=2)
 
         except Exception as e:
@@ -147,7 +151,6 @@ async def add(context, symbol: str=""):
         await bot.send_message(author, content="Argument missing! Usage: /add <smb>")
 
     else:
-        # retrieved_author = await bot.get_user_info(author_id)
         symbol_lower = symbol.lower()
 
         user_dir = "users/{:s}/".format(author_id)
@@ -184,7 +187,7 @@ async def remove(context, symbol: str=""):
 
         symbols = get_symbols(author_id)
         if symbol_lower in symbols:
-            await bot.send_message(author, content="Removed <{:s}> from watch list.".format(symbol_lower))
+            await bot.send_message(author, content="Removing <{:s}> from watch list...".format(symbol_lower))
             if len(symbols) < 2:
                 shutil.rmtree(user_dir)
                 await bot.send_message(author, content="No symbol left. User folder deleted.".format(symbol_lower))
@@ -196,6 +199,45 @@ async def remove(context, symbol: str=""):
 
         else:
             await bot.say("Symbol <{:s}> not in watch list.".format(symbol_lower))
+
+
+async def get_coin_embed(coin):
+    symbol = coin.get("symbol")
+    each_id = coin.get("id")
+    embed_title = "{:s} ({:s})".format(symbol.upper(), each_id)
+    embed_url = "https://coinmarketcap.com/currencies/{:s}/".format(each_id)
+    embed = discord.Embed(title=embed_title, url=embed_url)
+    embed.set_author(name=DESCRIPTION, url=URL)
+
+    try:
+        usd = float(coin.get("price_usd"))
+    except ValueError:
+        usd = -1.
+
+    try:
+        eur = float(coin.get("price_eur"))
+    except ValueError:
+        eur = -1.
+
+    embed_price = "${:6.2f} or {:6.2f} €".format(usd, eur)
+    embed.add_field(name="price", value=embed_price, inline=True)
+
+    try:
+        hourly_change = float(coin.get("percent_change_1h"))
+    except ValueError:
+        hourly_change = 0.
+
+    embed_h_change = "{:+5.2f}%".format(hourly_change)
+    embed.add_field(name="hourly change", value=embed_h_change, inline=True)
+
+    try:
+        daily_change = float(coin.get("percent_change_24h"))
+    except ValueError:
+        daily_change = 0.
+
+    embed_d_change = "{:+5.2f}%".format(daily_change)
+    embed.add_field(name="daily change", value=embed_d_change, inline=True)
+    return embed
 
 
 @bot.command(pass_context=True)
@@ -210,15 +252,15 @@ async def check(context, symbol: str=""):
 
     else:
         symbol_lower = symbol.lower()
-        global id_to_coin_dict, smb_to_ids
-        ids = smb_to_ids.get(symbol_lower)
+        ids = symbol_to_ids.get(symbol_lower)
         if ids is None:
             await bot.send_message(author, content="No coin with the symbol <{}> is listed.".format(symbol_lower))
         else:
             for each_id in ids:
                 coin = id_to_coin_dict.get(each_id)
                 if coin is not None:
-                    await bot.send_message(author, content=pprint.pformat(coin))
+                    embed = await get_coin_embed(coin)
+                    await bot.send_message(author, embed=embed)
 
 
 @bot.command(pass_context=True)
@@ -233,19 +275,20 @@ async def listings(context):
 
     if len(symbols) < 1:
         await bot.send_message(author, content="Watchlist empty! Add symbols with /add <smb>")
+
     else:
-        global id_to_coin_dict, smb_to_ids
-        lines = []
         for each_symbol in sorted(symbols):
-            ids = smb_to_ids.get(each_symbol)
-            if ids is None:
-                lines.append("No coin with the symbol <{}> is listed.".format(each_symbol))
-            else:
+            ids = symbol_to_ids.get(each_symbol)
+            if ids is not None:
                 for each_id in sorted(ids):
                     coin = id_to_coin_dict.get(each_id)
-                    if coin is not None:
-                        lines.append("{:s} (:s)".format(each_id, each_symbol))
-        await bot.send_message(author, content="\n".join(lines))
+                    embed = await get_coin_embed(coin)
+                    await bot.send_message(author, embed=embed)
+        await bot.send_message(author, content="Watch list:\n{:s}".format(", ".join(x.upper() for x in symbols)))
+        if author_id in user_notifications:
+            await bot.send_message(author, content="Notification service running.")
+        else:
+            await bot.send_message(author, content="Notification service disabled.")
 
 
 @bot.command(pass_context=True)
@@ -256,9 +299,8 @@ async def start(context):
     author = context.message.author
     author_id = author.id
 
-    global user_notifications
-    user_notifications[author_id] = True
-    await bot.send_message(author, content="Notification service running for {:s} (uID: {:s}).".format(author.name, author_id))
+    user_notifications.add(author_id)
+    await bot.send_message(author, content="Notification service running for {:s}.".format(author.name))
 
 
 @bot.command(pass_context=True)
@@ -269,8 +311,13 @@ async def stop(context):
     author = context.message.author
     author_id = author.id
 
-    global user_notifications
-    user_notifications[author_id] = False
-    await bot.send_message(author, content="Notification service stopped for {:s} (uID: {:s}).".format(author.name, author_id))
+    try:
+        user_notifications.remove(author_id)
+        await bot.send_message(author, content="Notification service stopped for {:s}.".format(author.name))
+    except KeyError:
+        await bot.send_message(author, content="Notification was not running for {:s}.".format(author.name))
 
-bot.run(TOKEN)
+
+with open("resources/discord-bot-token.txt", mode="r") as token_file:
+    token = token_file.readline().strip()
+bot.run(token)
