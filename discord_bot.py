@@ -37,7 +37,7 @@ symbol_to_ids = dict()
 user_notifications = set()
 
 URL = "https://github.com/wehnsdaefflae/checklisting_discord"
-DESCRIPTION = """CMC Listing Notification Bot"""
+DESCRIPTION = """CMC Listing Notification Bot, type ?help"""
 bot = commands.Bot(command_prefix="?", description=DESCRIPTION)
 
 
@@ -148,7 +148,7 @@ async def add(context, symbol: str=""):
     author_id = author.id
 
     if len(symbol) < 1:
-        await bot.send_message(author, content="Argument missing! Usage: /add <smb>")
+        await bot.send_message(author, content="Argument missing! Usage: ?add <smb>")
 
     else:
         symbol_lower = symbol.lower()
@@ -177,7 +177,7 @@ async def remove(context, symbol: str=""):
     author_id = author.id
 
     if len(symbol) < 1:
-        await bot.send_message(author, content="Argument missing! Usage: /remove <smb>")
+        await bot.send_message(author, content="Argument missing! Usage: ?remove <smb>")
 
     else:
         symbol_lower = symbol.lower()
@@ -248,7 +248,7 @@ async def check(context, symbol: str=""):
     author = context.message.author
 
     if len(symbol) < 1:
-        await bot.send_message(author, content="Argument missing! Usage: /check <smb>")
+        await bot.send_message(author, content="Argument missing! Usage: ?check <smb>")
 
     else:
         symbol_lower = symbol.lower()
@@ -263,18 +263,12 @@ async def check(context, symbol: str=""):
                     await bot.send_message(author, embed=embed)
 
 
-@bot.command(pass_context=True)
-async def listings(context):
-    """
-    Shows all listings on the watch list.
-    """
-    author = context.message.author
+async def send_listings(author):
     author_id = author.id
-
     symbols = get_symbols(author_id)
 
     if len(symbols) < 1:
-        await bot.send_message(author, content="Watchlist empty! Add symbols with /add <smb>")
+        await bot.send_message(author, content="Watchlist empty! Add symbols with ?add <smb>")
 
     else:
         for each_symbol in sorted(symbols):
@@ -284,11 +278,22 @@ async def listings(context):
                     coin = id_to_coin_dict.get(each_id)
                     embed = await get_coin_embed(coin)
                     await bot.send_message(author, embed=embed)
-        await bot.send_message(author, content="Watch list:\n{:s}".format(", ".join(x.upper() for x in symbols)))
-        if author_id in user_notifications:
-            await bot.send_message(author, content="Notification service running.")
-        else:
-            await bot.send_message(author, content="Notification service disabled.")
+        await bot.send_message(author,
+                               content="Watch list:\n{:s}".format(", ".join(x.upper() for x in sorted(symbols))))
+
+    if author_id in user_notifications:
+        await bot.send_message(author, content="Notification service for {:s} running.".format(author.name))
+    else:
+        await bot.send_message(author, content="Notification service {:s} disabled.".format(author.name))
+
+
+@bot.command(pass_context=True)
+async def listings(context):
+    """
+    Shows all listings on the watch list.
+    """
+    author = context.message.author
+    await send_listings(author)
 
 
 @bot.command(pass_context=True)
@@ -298,9 +303,8 @@ async def start(context):
     """
     author = context.message.author
     author_id = author.id
-
     user_notifications.add(author_id)
-    await bot.send_message(author, content="Notification service running for {:s}.".format(author.name))
+    await send_listings(author)
 
 
 @bot.command(pass_context=True)
@@ -313,7 +317,7 @@ async def stop(context):
 
     try:
         user_notifications.remove(author_id)
-        await bot.send_message(author, content="Notification service stopped for {:s}.".format(author.name))
+        await bot.send_message(author, content="Notification service for {:s} stopped.".format(author.name))
     except KeyError:
         await bot.send_message(author, content="Notification was not running for {:s}.".format(author.name))
 
