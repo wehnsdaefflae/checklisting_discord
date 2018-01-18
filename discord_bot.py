@@ -284,7 +284,7 @@ async def send_listings(author):
     if author_id in user_notifications:
         await bot.send_message(author, content="Notification service for {:s} running.".format(author.name))
     else:
-        await bot.send_message(author, content="Notification service {:s} disabled.".format(author.name))
+        await bot.send_message(author, content="Notification service for {:s} disabled.".format(author.name))
 
 
 @bot.command(pass_context=True)
